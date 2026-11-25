@@ -39,8 +39,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RENPY_VERSION: "8.6.1"
-      SDK_DIR: ${{ runner.temp }}/renpy-sdk
-      OUT_DIR: ${{ runner.temp }}/webout
     steps:
       - uses: actions/checkout@v4
 
@@ -55,11 +53,16 @@ jobs:
           test -f renpy-sdk/web/hash.txt
 
       - name: Lint
+        env:
+          SDK_DIR: ${{ runner.temp }}/renpy-sdk
         run: |
           SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
             "$SDK_DIR/renpy.sh" "$GITHUB_WORKSPACE" lint || true
 
       - name: Web ビルド
+        env:
+          SDK_DIR: ${{ runner.temp }}/renpy-sdk
+          OUT_DIR: ${{ runner.temp }}/webout
         run: |
           SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
             "$SDK_DIR/renpy.sh" launcher web_build "$GITHUB_WORKSPACE" --destination "$OUT_DIR"
@@ -74,7 +77,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
-          publish_dir: ${{ env.OUT_DIR }}
+          publish_dir: ${{ runner.temp }}/webout
           keep_files: true
           commit_message: "deploy main: ${{ github.sha }}"
 
@@ -84,7 +87,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
-          publish_dir: ${{ env.OUT_DIR }}
+          publish_dir: ${{ runner.temp }}/webout
           destination_dir: ${{ github.ref_name }}
           keep_files: true
           commit_message: "deploy ${{ github.ref_name }}: ${{ github.sha }}"
