@@ -1,0 +1,7 @@
+# OS / エディタ
+.DS_Store
+Thumbs.db
+.vscode/
+
+# プロジェクト固有の生成物や本番素材の除外は、
+# 取り込んだパックの .gitignore.snippet と PROJECT.md の素材ポリシーに従って足す。

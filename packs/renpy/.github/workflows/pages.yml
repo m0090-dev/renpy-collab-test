@@ -1,0 +1,57 @@
+# ドラフト: Ren'Py Web ビルド → GitHub Pages 公開
+#
+# 動作イメージ:
+#   - main への push      → 本番ビルドをサイトのルート "/" に公開
+#   - 作業ブランチへの push → テストビルドを "/<ブランチ名>/" に公開
+#
+# 注意（実リポジトリで要検証の点）:
+#   - Ren'Py SDK のダウンロードと、Web サポート (renpy-<ver>-web.zip) の展開先。
+#     web.zip の中身 (web フォルダ) を SDK 直下にコピーする手順が必要な場合がある。
+#   - 公開は「サイト全体を 1 つの成果物として組み立ててデプロイ」する方式。
+#     main と各ブランチのフォルダを毎回マージしてからデプロイすること
+#     (単純にブランチごとにデプロイすると他ブランチのフォルダが消える)。
+#     実装時は peaceiris/actions-gh-pages で蓄積するか、
+#     actions/deploy-pages 用にサイト全体を組み立てる。
+#   - サイト容量の警告 (800MB 超) を入れる。
+#
+# このファイルは叩き台。実リポジトリに置く前に一度テストブランチで通し確認する。
+
+name: build-and-deploy-web
+
+on:
+  push:
+    branches: ["**"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      RENPY_VERSION: "8.6.1" # 検証済みの版に合わせる
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ren'Py SDK を取得
+        run: |
+          curl -L -o sdk.tar.bz2 "https://www.renpy.org/dl/${RENPY_VERSION}/renpy-${RENPY_VERSION}-sdk.tar.bz2"
+          tar -xjf sdk.tar.bz2
+          mv "renpy-${RENPY_VERSION}-sdk" sdk
+          curl -L -o web.zip "https://www.renpy.org/dl/${RENPY_VERSION}/renpy-${RENPY_VERSION}-web.zip"
+          unzip -o web.zip -d sdk-web && cp -r sdk-web/*/web sdk/ || true
+
+      - name: Lint
+        run: |
+          cd sdk
+          SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./renpy.sh ../game lint || true
+
+      - name: Web ビルド
+        run: |
+          cd sdk
+          SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+            ./renpy.sh launcher web_build ../game --destination ../webout
+
+      - name: 成果物を保存（公開ステップは実リポジトリで確定）
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-${{ github.ref_name }}
+          path: webout

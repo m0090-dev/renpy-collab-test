@@ -1,0 +1,37 @@
+# プロジェクト側に置くワークフローのサンプル。
+# 置き場所: プロジェクトリポジトリの .github/workflows/template-sync.yml
+# （このテンプレート自体には入れない。プロジェクト側で有効化する）
+#
+# 動き: テンプレートリポジトリの更新を定期チェックし、差分があれば
+# プロジェクト側に PR を自動で作る。マージするかどうかは管理担当が決める。
+# 使うアクション: AndreasAugustin/actions-template-sync
+#   https://github.com/AndreasAugustin/actions-template-sync
+#
+# 設定の要点:
+#   - source_repo_path にテンプレートリポジトリを指定する。
+#   - プロジェクト固有ファイルは .templatesyncignore（extras のサンプル参照）で
+#     同期対象から外す。外さないと PROJECT.md 等が上書きされ得る。
+#   - テンプレートが private の場合は SSH 鍵か PAT の設定が別途要る。
+#   - .github/workflows/ 配下のファイルまで同期したい場合は、権限の都合で
+#     GITHUB_TOKEN ではなく PAT（workflow 権限付き）が要る場合がある。
+
+name: template-sync
+
+on:
+  schedule:
+    - cron: "0 3 * * 1" # 毎週月曜 03:00 UTC（目安。頻度は好みで）
+  workflow_dispatch:
+
+jobs:
+  repo-sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: AndreasAugustin/actions-template-sync@v2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          source_repo_path: <owner>/<template-repo> # テンプレートリポジトリに書き換える
+          upstream_branch: main
