@@ -65,7 +65,7 @@ jobs:
           OUT_DIR: ${{ runner.temp }}/webout
         run: |
           SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
-            "$SDK_DIR/renpy.sh" launcher web_build "$GITHUB_WORKSPACE" --destination "$OUT_DIR"
+            "$SDK_DIR/renpy.sh" "$SDK_DIR/launcher" web_build "$GITHUB_WORKSPACE" --destination "$OUT_DIR"
           test -f "$OUT_DIR/index.html"
           ls -lh "$OUT_DIR"
           # game.zip が 90MB を超えたら異常（何かを巻き込んでいる）ので止める
