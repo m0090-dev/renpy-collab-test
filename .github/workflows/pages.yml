@@ -5,9 +5,7 @@
 #   - 作業ブランチへの push → ビルドのみ（公開はしない）
 #
 # 未実装（次段）:
-#   - 作業ブランチの "/<ブランチ名>/" 公開。サイト全体を組み立て直して
-#     デプロイする方式が必要（単純にブランチごとにデプロイすると
-#     他ブランチのフォルダが消える）。
+#   - 作業ブランチの "/<ブランチ名>/" 公開。
 
 name: build-and-deploy-web
 
@@ -20,6 +18,10 @@ permissions:
   contents: read
   pages: write
   id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -47,14 +49,22 @@ jobs:
         run: |
           cd sdk
           SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
-          ./renpy.sh launcher web_build "$GITHUB_WORKSPACE" --destination "$GITHUB_WORKSPACE/webout"
+            ./renpy.sh launcher web_build "$GITHUB_WORKSPACE" --destination "$GITHUB_WORKSPACE/webout"
           test -f "$GITHUB_WORKSPACE/webout/index.html"
-      - name: Pages 用に成果物を上げる（main のみ）
-        if: github.ref == 'refs/heads/main'
+
+      - name: Pages 用に成果物を上げる
         uses: actions/upload-pages-artifact@v3
         with:
           path: webout
 
-      - name: Pages に公開（main のみ）
-        if: github.ref == 'refs/heads/main'
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Pages に公開
+        id: deployment
         uses: actions/deploy-pages@v4
