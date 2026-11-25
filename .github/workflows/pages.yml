@@ -47,9 +47,8 @@ jobs:
         run: |
           cd sdk
           SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
-            ./renpy.sh launcher web_build "$GITHUB_WORKSPACE/game" --destination "$GITHUB_WORKSPACE/webout"
+          ./renpy.sh launcher web_build "$GITHUB_WORKSPACE" --destination "$GITHUB_WORKSPACE/webout"
           test -f "$GITHUB_WORKSPACE/webout/index.html"
-
       - name: Pages 用に成果物を上げる（main のみ）
         if: github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v3
