@@ -37,8 +37,8 @@ jobs:
           tar -xjf sdk.tar.bz2
           mv "renpy-${RENPY_VERSION}-sdk" sdk
           curl -L -o web.zip "https://www.renpy.org/dl/${RENPY_VERSION}/renpy-${RENPY_VERSION}-web.zip"
-          unzip -o web.zip -d sdk-web && cp -r sdk-web/*/web sdk/ || true
-
+          unzip -o web.zip -d sdk
+          test -f sdk/web/hash.txt
       - name: Lint
         run: |
           cd sdk
