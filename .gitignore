@@ -5,3 +5,10 @@ Thumbs.db
 
 # プロジェクト固有の生成物や本番素材の除外は、
 # 取り込んだパックの .gitignore.snippet と PROJECT.md の素材ポリシーに従って足す。
+# Ren'Py の生成物
+game/cache/
+game/saves/
+*.rpyc
+log.txt
+traceback.txt
+errors.txt
