@@ -1,0 +1,41 @@
+# 作業ブランチが削除されたら、そのブランチの公開フォルダも消す
+#
+# 動作:
+#   - ブランチ削除イベントで発火する。
+#   - gh-pages ブランチの "/<削除されたブランチ名>/" フォルダを削除して push する。
+#   - main の削除では何もしない（そもそも削除禁止の運用）。
+
+name: cleanup-preview
+
+on:
+  delete:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pages-publish
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    if: github.event.ref_type == 'branch' && github.event.ref != 'main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: gh-pages をチェックアウト
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+
+      - name: ブランチ用フォルダを削除
+        run: |
+          if [ -d "${{ github.event.ref }}" ]; then
+            rm -rf "${{ github.event.ref }}"
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "cleanup preview: ${{ github.event.ref }}"
+            git push origin gh-pages
+          else
+            echo "フォルダなし: ${{ github.event.ref }}（何もしない）"
+          fi

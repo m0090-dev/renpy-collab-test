@@ -1,11 +1,22 @@
-# Ren'Py Web ビルド → GitHub Pages 公開
+# Ren'Py Web ビルド → GitHub Pages 公開（ブランチ別公開つき）
 #
 # 動作:
-#   - main への push → ビルドしてサイトのルート "/" に公開
-#   - 作業ブランチへの push → ビルドのみ（公開はしない）
+#   - main への push       → ビルドしてサイトのルート "/" に公開
+#   - 作業ブランチへの push → ビルドして "/<ブランチ名>/" に公開
+#   - 公開先は gh-pages ブランチ（Pages の公開ソースを
+#     「Deploy from a branch: gh-pages / root」に設定すること）
 #
-# 未実装（次段）:
-#   - 作業ブランチの "/<ブランチ名>/" 公開。
+# 仕組み:
+#   - 公開は peaceiris/actions-gh-pages で gh-pages ブランチへ書き込む。
+#     keep_files: true なので、main の公開でブランチ用フォルダは消えず、
+#     ブランチの公開でルートや他ブランチのフォルダも消えない。
+#   - ブランチを削除したときの掃除は cleanup-preview.yml が担当する。
+#
+# 注意:
+#   - ブランチ名は英小文字とハイフンのみ（URL のフォルダ名になるため）。
+#   - main の公開では、過去の main ビルドにだけ存在した古いファイルが
+#     ルートに残ることがある。ファイル名はほぼ固定なので実害は小さいが、
+#     気になる場合は gh-pages のルートを手動で掃除する。
 
 name: build-and-deploy-web
 
@@ -15,12 +26,10 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
-  group: pages
+  group: pages-publish
   cancel-in-progress: false
 
 jobs:
@@ -52,19 +61,23 @@ jobs:
             ./renpy.sh launcher web_build "$GITHUB_WORKSPACE" --destination "$GITHUB_WORKSPACE/webout"
           test -f "$GITHUB_WORKSPACE/webout/index.html"
 
-      - name: Pages 用に成果物を上げる
-        uses: actions/upload-pages-artifact@v3
+      - name: 公開（main → ルート）
+        if: github.ref == 'refs/heads/main'
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: webout
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: ./webout
+          keep_files: true
+          commit_message: "deploy main: ${{ github.sha }}"
 
-  deploy:
-    if: github.ref == 'refs/heads/main'
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Pages に公開
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: 公開（作業ブランチ → /<ブランチ名>/）
+        if: github.ref != 'refs/heads/main'
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: ./webout
+          destination_dir: ${{ github.ref_name }}
+          keep_files: true
+          commit_message: "deploy ${{ github.ref_name }}: ${{ github.sha }}"
