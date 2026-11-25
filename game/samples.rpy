@@ -1,10 +1,14 @@
 # おまけサンプル集（samples.rpy）
-# 何を: 共同制作者が今後やりそうな5パターンの実装サンプル。
+# 何を: 共同制作者が今後やりそうな9パターンの実装サンプル。
 #   1. 簡単なアクションゲーム（反応速度ゲーム）… screen と timer の使い方
 #   2. 少し複雑なメタ要素（persistent の記憶）… ゲームを閉じても残るデータ
 #   3. 選択肢のあと途中で追加される選択肢 … menu の if 条件で動的に増減する選択肢
 #   4. ブロック崩し … timer で毎フレーム計算を回す、本格寄りのアクション
 #   5. スライドパズル … クリックで状態が変わる盤面を screen で描く
+#   6. ポイント＆クリック探索（脱出風）… 画面のホットスポットを調べて連鎖させる
+#   7. スマホ風チャットUI … screen でメッセージアプリ風の画面を作る
+#   8. 制限時間つき選択肢＋QTE … 時間切れの分岐と、反射神経ボタン
+#   9. 3D Stage … 公式機能で2D画像に奥行きと視差（パララックス）を付ける
 # なぜ: どれも「台詞の流れ」だけでは作れない仕組みなので、真似できる形で残す。
 # 接続: script.rpy の label start から call samples_hub で呼ばれる。
 
@@ -29,6 +33,14 @@ label samples_hub:
             call sample_breakout
         "5. スライドパズル":
             call sample_puzzle
+        "6. ポイント＆クリック探索（脱出風）":
+            call sample_escape
+        "7. スマホ風チャットUI":
+            call sample_chat
+        "8. 制限時間つき選択肢＋QTE":
+            call sample_timed
+        "9. 3D Stage（奥行きと視差）":
+            call sample_3d
         "（テスト用）メタ要素のデータをリセット":
             # サンプル2の保存データを初期状態に戻す。
             # 本番で使うときは、この選択肢ごと消してよい。
@@ -565,4 +577,557 @@ label sample_puzzle:
             a "完成！ [puzzle_moves] 手かかったけど、最後まで解き切ったね。"
     else:
         a "パズルはここまで。シャッフルは必ず解ける作り方だから、また挑戦してね。"
+    return
+
+
+# ============================================================
+# サンプル6: ポイント＆クリック探索（脱出風）
+# ============================================================
+# 仕組み:
+# - 部屋の画面を screen で作り、調べたい場所に「ホットスポット」
+#   （絶対配置した textbutton）を置く。ボタンは Return(場所の名前) で
+#   画面を抜けるだけにして、「調べて何が起きるか」はラベル側に書く。
+#   画面＝見た目と入力、ラベル＝物語の分岐、と分けると読みやすい。
+# - ラベル側は call screen を while で繰り返し、返ってきた場所ごとに
+#   台詞を分岐させる定番の形。小さな連鎖を作ってある:
+#     本棚 → メモ（鍵は机の引き出し、というヒント）
+#     机の引き出し → 小さい鍵を入手
+#     ドア → 鍵を持っていれば脱出成功、無ければ「鍵がかかっている」
+#     窓 → フレーバー（何も起きないが、世界の味付けになる）
+# - 調べ済みの場所は escape_checked（集合）に覚えておき、ボタンの色と
+#   文字を変える。「もう調べた」が見た目で分かると、プレイヤーが迷わない。
+# - 所持品（鍵の有無）も画面の隅に常時表示する。
+
+# 探索の状態の置き場所。ラベル側で初期化する。
+default escape_checked = set()
+default escape_has_key = False
+
+screen escape_room_screen():
+    modal True
+    # 部屋の壁代わりの単色を敷く（画像が無くても Solid で部屋らしくなる）。
+    add Solid("#26314a") xysize (config.screen_width, config.screen_height)
+    text "小さな部屋（クリックで調べる）":
+        xalign 0.5
+        ypos 24
+        color "#ffffff"
+    # 所持品と進み具合を隅に出す。[...] の中は式が書けるので、
+    # 鍵の有無で表示する文字列を切り替えている。
+    $ item_text = "小さい鍵" if escape_has_key else "なし"
+    text "所持品: [item_text]　調べた場所: [len(escape_checked)] か所":
+        xpos 24
+        ypos 24
+        color "#cfd8e3"
+    # ホットスポット。調べ済みかどうかで、文字と色を変える。
+    # $ で screen 内の作業用変数を作ってから textbutton に渡すと読みやすい。
+    $ shelf_label = "本棚（調べ済み）" if "shelf" in escape_checked else "本棚"
+    $ shelf_color = "#4c4c55" if "shelf" in escape_checked else "#7a5c36"
+    textbutton shelf_label:
+        xpos int(config.screen_width * 0.06)
+        ypos int(config.screen_height * 0.22)
+        xysize (300, 220)
+        background Solid(shelf_color)
+        hover_background Solid("#8a7150")
+        text_color "#ffffff"
+        action Return("shelf")
+    $ desk_label = "机（調べ済み）" if "desk" in escape_checked else "机"
+    $ desk_color = "#4c4c55" if "desk" in escape_checked else "#5d7e4a"
+    textbutton desk_label:
+        xpos int(config.screen_width * 0.30)
+        ypos int(config.screen_height * 0.55)
+        xysize (340, 200)
+        background Solid(desk_color)
+        hover_background Solid("#74975f")
+        text_color "#ffffff"
+        action Return("desk")
+    $ window_label = "窓（調べ済み）" if "window" in escape_checked else "窓"
+    $ window_color = "#4c4c55" if "window" in escape_checked else "#4a6d8a"
+    textbutton window_label:
+        xpos int(config.screen_width * 0.62)
+        ypos int(config.screen_height * 0.20)
+        xysize (300, 220)
+        background Solid(window_color)
+        hover_background Solid("#5f87a8")
+        text_color "#ffffff"
+        action Return("window")
+    $ door_label = "ドア（調べ済み）" if "door" in escape_checked else "ドア"
+    $ door_color = "#4c4c55" if "door" in escape_checked else "#8a4a3a"
+    textbutton door_label:
+        xpos int(config.screen_width * 0.83)
+        ypos int(config.screen_height * 0.40)
+        xysize (240, 380)
+        background Solid(door_color)
+        hover_background Solid("#a85f4c")
+        text_color "#ffffff"
+        action Return("door")
+    textbutton "探索をやめる":
+        xalign 0.5
+        ypos int(config.screen_height * 0.90)
+        action Return("quit")
+
+label sample_escape:
+    scene bg room
+    show chara at center
+    a "ポイント＆クリック探索のサンプルだよ。小さな部屋に閉じ込められた設定で、画面の気になる場所をクリックして調べてみて。"
+    a "脱出までの小さな連鎖も作ってある。まずはあちこち触ってみて。"
+    # 状態を初期化してから、部屋の画面と台詞を行き来するループに入る。
+    $ escape_checked = set()
+    $ escape_has_key = False
+    while True:
+        call screen escape_room_screen
+        if _return == "quit":
+            a "探索はここまで。脱出ゲームは、この「調べて連鎖させる」形の積み重ねだよ。"
+            return
+        elif _return == "shelf":
+            if "shelf" in escape_checked:
+                a "本棚のメモはもう読んだよね。「鍵は机の引き出しの中」って書いてあった。"
+            else:
+                $ escape_checked.add("shelf")
+                a "本棚に、挟まったメモがあった。……「ドアの鍵は、机の引き出しの中」だって。"
+                a "なるほど、じゃあ机を調べれば鍵が手に入りそうだね。"
+        elif _return == "desk":
+            if escape_has_key:
+                a "引き出しはもう空っぽ。鍵はきみのポケットの中だよ。"
+            else:
+                $ escape_checked.add("desk")
+                $ escape_has_key = True
+                a "机の引き出しを開けたら……小さい鍵が入ってた！ これでドアが開くはず。"
+                a "（所持品に「小さい鍵」が追加された。画面の左上でも確認できるよ）"
+        elif _return == "window":
+            if "window" in escape_checked:
+                a "窓の外は相変わらず夕方。鍵はここには無いよ。"
+            else:
+                $ escape_checked.add("window")
+                a "窓は鍵がかかってて開かない。外は夕方で、誰もいないみたい。"
+                a "ここからは出られなさそう。……フレーバーの場所ってやつだね。"
+        elif _return == "door":
+            if escape_has_key:
+                a "鍵を差し込んだら……開いた！ 脱出成功だよ、おつかれさま。"
+                a "本棚→机→ドア、みたいな小さな連鎖を増やしていけば、そのまま脱出ゲームになるよ。"
+                return
+            else:
+                $ escape_checked.add("door")
+                a "ドアは鍵がかかってて開かない。どこかに鍵があるはずだよ。"
+
+
+# ============================================================
+# サンプル7: スマホ風チャットUI
+# ============================================================
+# 仕組み:
+# - メッセージアプリ風の画面を screen で作る。上に相手名のヘッダ、
+#   相手の吹き出しは左寄せ、自分の吹き出しは右寄せにするのが
+#   「それっぽく見える」最小セット。
+# - 会話の履歴は chat_log というリストに (誰か, 文) の組で積んでいく。
+#   screen はリストの最後の数件だけを描く（全部描くと画面からはみ出すため、
+#   古い分は表示から落とす。データ自体は残っている）。
+# - 進行はラベル側が握る。call screen の引数 mode で画面の役割を変える:
+#     "next"   … 下に「次へ」ボタン。タップでラベルに戻る
+#     "typing" … 「入力中…」の吹き出しを出して、timer で自動的に戻る
+#     "reply"  … 返信候補を2つボタンで出し、選ばれた方を返す
+#     "end"    … 「閉じる」ボタンで終わる
+# - プレイヤーが選んだ返信は、自分の吹き出しとして履歴に積まれてから、
+#   相手の返事が分岐する。「選ぶ→自分の文が出る→相手が返す」の順番が大事。
+
+init python:
+
+    def chat_add(who, text):
+        # 会話履歴に1通積む。who は "other"（相手）か "me"（自分）。
+        store.chat_log.append((who, text))
+
+# 会話履歴の置き場所。ラベル側で空リストにしてから始める。
+default chat_log = []
+
+screen chat_screen(mode, options=None):
+    modal True
+    # 入力中モードのときは、timer で自動的にラベルへ戻る。
+    # プレイヤーの操作を待たずに進めたい場面は、この形が便利。
+    if mode == "typing":
+        timer 1.1 repeat False action Return("typed")
+    fixed:
+        xalign 0.5
+        yalign 0.5
+        xysize (720, 960)
+        # スマホ本体とヘッダの帯。
+        add Solid("#141a24") xysize (720, 960)
+        add Solid("#2c394d") xysize (720, 88)
+        text "相手役":
+            xpos 28
+            ypos 24
+            color "#ffffff"
+            size 34
+        # 吹き出し一覧。表示は最後の7件まで（古い分は表示から落とす）。
+        vbox:
+            xpos 24
+            ypos 108
+            xsize 672
+            spacing 12
+            for who, msg in chat_log[-7:]:
+                if who == "other":
+                    frame:
+                        xalign 0.0
+                        xmaximum 480
+                        background Solid("#3a4658")
+                        padding (16, 10)
+                        text msg color "#ffffff" size 30
+                elif who == "me":
+                    frame:
+                        xalign 1.0
+                        xmaximum 480
+                        background Solid("#2e7d4f")
+                        padding (16, 10)
+                        text msg color "#ffffff" size 30
+                else:
+                    # "typing" の吹き出し。相手が入力中っぽい見た目にする。
+                    frame:
+                        xalign 0.0
+                        background Solid("#3a4658")
+                        padding (16, 10)
+                        text "……" color "#cfd8e3" size 30
+        # 下部: モードごとにボタンの出し分け。
+        if mode == "reply":
+            vbox:
+                xpos 24
+                ypos 780
+                xsize 672
+                spacing 10
+                textbutton options[0]:
+                    xsize 672
+                    background Solid("#37506e")
+                    hover_background Solid("#45668c")
+                    text_color "#ffffff"
+                    action Return("reply1")
+                textbutton options[1]:
+                    xsize 672
+                    background Solid("#37506e")
+                    hover_background Solid("#45668c")
+                    text_color "#ffffff"
+                    action Return("reply2")
+        elif mode == "next":
+            textbutton "次へ":
+                xpos 24
+                ypos 856
+                xsize 672
+                background Solid("#37506e")
+                hover_background Solid("#45668c")
+                text_color "#ffffff"
+                action Return("next")
+        elif mode == "end":
+            textbutton "スマホを閉じる":
+                xpos 24
+                ypos 856
+                xsize 672
+                background Solid("#37506e")
+                hover_background Solid("#45668c")
+                text_color "#ffffff"
+                action Return("end")
+
+label sample_chat:
+    scene bg room
+    show chara at center
+    a "スマホ風チャットのサンプルだよ。ぼくからメッセージを送るから、スマホの中で返信を選んでみて。"
+    $ chat_log = []
+    $ chat_add("other", "やっほー、今ひま？")
+    call screen chat_screen("next")
+    # 入力中を一瞬見せてから、本命の返信を出す。
+    $ chat_log.append(("typing", ""))
+    call screen chat_screen("typing")
+    $ chat_log.pop()
+    $ chat_add("other", "実はこれ、スマホ画面の中で会話する実験なんだ。下の候補から返信を選んでみて。")
+    call screen chat_screen("reply", ("いいよ、つきあう", "今は忙しいかも"))
+    if _return == "reply1":
+        $ chat_add("me", "いいよ、つきあう")
+        $ chat_log.append(("typing", ""))
+        call screen chat_screen("typing")
+        $ chat_log.pop()
+        $ chat_add("other", "ありがとう！ じゃあ質問。好きな食べ物はどっち？")
+        call screen chat_screen("reply", ("カレー", "お寿司"))
+        if _return == "reply1":
+            $ chat_add("me", "カレー")
+            $ chat_log.append(("typing", ""))
+            call screen chat_screen("typing")
+            $ chat_log.pop()
+            $ chat_add("other", "カレー派か。今度カレーの話もしよう。")
+        else:
+            $ chat_add("me", "お寿司")
+            $ chat_log.append(("typing", ""))
+            call screen chat_screen("typing")
+            $ chat_log.pop()
+            $ chat_add("other", "お寿司派か。今度お寿司の話もしよう。")
+    else:
+        $ chat_add("me", "今は忙しいかも")
+        $ chat_log.append(("typing", ""))
+        call screen chat_screen("typing")
+        $ chat_log.pop()
+        $ chat_add("other", "そっか、じゃあ短く済ませるね。最後に1つだけ、今日の気分は？")
+        call screen chat_screen("reply", ("いい感じ", "ふつう"))
+        if _return == "reply1":
+            $ chat_add("me", "いい感じ")
+            $ chat_log.append(("typing", ""))
+            call screen chat_screen("typing")
+            $ chat_log.pop()
+            $ chat_add("other", "それはよかった。忙しいのに答えてくれてありがとう。")
+        else:
+            $ chat_add("me", "ふつう")
+            $ chat_log.append(("typing", ""))
+            call screen chat_screen("typing")
+            $ chat_log.pop()
+            $ chat_add("other", "ふつうが一番長持ちするやつだよ。答えてくれてありがとう。")
+    $ chat_log.append(("typing", ""))
+    call screen chat_screen("typing")
+    $ chat_log.pop()
+    $ chat_add("other", "今日はここまで。また話そうね。")
+    call screen chat_screen("end")
+    a "こんな感じで、作中のスマホやメッセージのやり取りは screen だけで作れるよ。"
+    a "返信の候補を増やしたり、相手の返事を細かく分けたりすれば、そのまま本編の演出になるよ。"
+    return
+
+
+# ============================================================
+# サンプル8: 制限時間つき選択肢＋QTE
+# ============================================================
+# 仕組み（制限時間つき選択肢）:
+# - 普通の menu には制限時間がない。そこで、選択肢を専用 screen で出し、
+#   残り時間を Python 変数 timed_remaining に持つ。
+# - screen の timer が 0.1 秒ごとに Function 経由で残り時間を減らし、
+#   bar（ゲージ）で見せる。残り時間が 0 になったら、screen 内の条件つき
+#   timer が Return("timeout") を返して、「何も選べなかった」専用の
+#   展開に進む。時間切れを「失敗」ではなく「1つの分岐」として扱うのがコツ。
+# - 選択肢は (表示文, 返す値) のリストで screen に渡す形にしてあるので、
+#   項目を増やしたり文言を変えたりしやすい。
+#
+# 仕組み（QTE）:
+# - 画面のランダムな位置にボタンを出し、制限時間内に押せるかを判定する。
+# - ボタンの位置（qte_x, qte_y）と制限時間（qte_limit）は、毎回ラベル側の
+#   Python で決めてから screen を呼ぶ。ラウンドが進むほど制限時間を
+#   短くしていく。残り時間の減らし方は、上の選択肢と同じ仕掛け。
+# - 押せたら Return("hit")、時間切れなら Return("miss") が返るので、
+#   ラベル側は成功数を数えるだけでよい。
+
+init python:
+
+    def timed_tick(dt):
+        # 制限時間つき選択肢用: 残り時間を dt 秒ぶん減らして画面を描き直す。
+        store.timed_remaining = max(0.0, store.timed_remaining - dt)
+        renpy.restart_interaction()
+
+    def qte_tick(dt):
+        # QTE用: 同じ仕掛けを別の変数で回す（選択肢側と混ざらないように）。
+        store.qte_remaining = max(0.0, store.qte_remaining - dt)
+        renpy.restart_interaction()
+
+# 残り時間の置き場所。ラベル側で呼ぶ直前に初期化する。
+default timed_remaining = 0.0
+default qte_remaining = 0.0
+default qte_x = 0
+default qte_y = 0
+default qte_success = 0
+
+screen timed_choice_screen(prompt, options, time_limit):
+    modal True
+    timer 0.1 repeat True action Function(timed_tick, 0.1)
+    # 残り時間が尽きたら、時間切れとして画面を抜ける。
+    # tick のたびに画面が描き直されるので、この if もその都度評価される。
+    if timed_remaining <= 0.0:
+        timer 0.05 repeat False action Return("timeout")
+    frame:
+        xalign 0.5
+        yalign 0.5
+        padding (28, 24)
+        vbox:
+            spacing 14
+            text prompt xalign 0.5
+            # 残り時間のゲージ。value が今の値、range が満タンの値。
+            bar:
+                value timed_remaining
+                range time_limit
+                xsize 560
+                xalign 0.5
+            for label_text, ret_value in options:
+                textbutton label_text:
+                    xsize 560
+                    xalign 0.5
+                    action Return(ret_value)
+
+screen qte_screen(round_no, limit):
+    modal True
+    timer 0.05 repeat True action Function(qte_tick, 0.05)
+    if qte_remaining <= 0.0:
+        timer 0.05 repeat False action Return("miss")
+    add Solid("#20242e") xysize (config.screen_width, config.screen_height)
+    text "QTE [round_no] / 5　成功 [qte_success] 回":
+        xpos 24
+        ypos 24
+        color "#ffffff"
+    bar:
+        value qte_remaining
+        range limit
+        xpos 24
+        ypos 72
+        xsize 480
+    textbutton "押せ！":
+        xpos qte_x
+        ypos qte_y
+        xysize (170, 170)
+        background Solid("#d9574a")
+        hover_background Solid("#ef6a5c")
+        text_color "#ffffff"
+        text_size 36
+        action Return("hit")
+
+label sample_timed:
+    scene bg room
+    show chara at center
+    a "制限時間つき選択肢のサンプルだよ。ゲージが無くなる前に選んで。時間切れなら、時間切れ専用の展開になるよ。"
+    # ---- 制限時間つき選択肢 ----
+    $ timed_remaining = 6.0
+    call screen timed_choice_screen("天井から箱が落ちてきた！ どうする？", [("よける", "dodge"), ("受け止める", "catch"), ("じっとする", "stay")], 6.0)
+    if _return == "dodge":
+        a "間一髪でよけた！ 箱は床で派手に潰れたよ。"
+    elif _return == "catch":
+        a "ナイスキャッチ！ 中身はクッションだったみたい。無事だね。"
+    elif _return == "stay":
+        a "じっとしてたら、箱は隣に落ちた。……運がいいね、きみ。"
+    else:
+        a "迷ってる間に箱が落ちてきた！ ……幸い、中身はクッションだったよ。"
+        a "こんなふうに、時間切れも「選ばなかった場合の分岐」として作っておくと、プレイヤーを詰ませずに済むよ。"
+    # ---- QTE ----
+    a "次はQTE。画面のどこかに出る「押せ！」を、ゲージが無くなる前に押して。5回やって、だんだん速くなるよ。"
+    $ qte_success = 0
+    $ qte_round = 1
+    while qte_round <= 5:
+        # ラウンドごとに制限時間を短くし、ボタンの位置をランダムに決める。
+        $ qte_limit = max(0.55, 1.2 - 0.15 * (qte_round - 1))
+        $ qte_remaining = qte_limit
+        $ qte_x = renpy.random.randint(80, config.screen_width - 260)
+        $ qte_y = renpy.random.randint(180, config.screen_height - 320)
+        call screen qte_screen(qte_round, qte_limit)
+        if _return == "hit":
+            $ qte_success += 1
+        $ qte_round += 1
+    if qte_success >= 5:
+        a "5回全部成功！ パーフェクトだよ。反射神経、いいね。"
+    elif qte_success >= 3:
+        a "[qte_success] 回成功。なかなかの成績だよ。あと少しで全問成功だったね。"
+    elif qte_success >= 1:
+        a "[qte_success] 回だけ成功。後半は速かったでしょ。制限時間の調整ひとつで、難しさはどうとでもなるよ。"
+    else:
+        a "全部逃しちゃったね……。ボタンの場所と制限時間、どっちを緩めるかで体感はだいぶ変わるよ。"
+    return
+
+
+# ============================================================
+# サンプル9: 3D Stage（奥行きと視差）
+# ============================================================
+# 仕組み:
+# - これは「本物の3Dモデル」を読み込む機能ではない。公式機能の
+#   3D Stage は、2D画像を「奥行きのある仮想の舞台」に置くための仕組み。
+#   画像そのものは今まで通り Solid や立ち絵でよい。
+# - まず camera 文で master レイヤーの camera に perspective True を
+#   設定して、3D Stage を有効にする。perspective（透視投影）が効くと、
+#   奥に置いた画像は小さく、手前に置いた画像は大きく見えるようになる。
+# - 各画像の奥行きは、transform の zpos で決める。zpos 0 が基準面、
+#   マイナスが奥、プラスが手前。xpos / ypos は「zpos 0 の面での座標」
+#   として解釈される。
+# - 視差（パララックス）は、camera 自体に transform を当てて、
+#   マウス位置（スマホではタッチ位置）に応じて camera のオフセットを
+#   少しずつ動かすことで作る。camera が動くと、奥の画像と手前の画像で
+#   ずれ量が変わるので、「奥行きがある」ように見える。
+#   transform の更新は ATL の function で行う（知られた定番の形）。
+# - カードの回転は、transform の yrotate。板が横方向に3D回転する。
+#   回転を立体的に見せるには、その transform 自体にも
+#   perspective True を付ける必要がある（camera 側とは別に）。
+# - 終わったら必ず camera の perspective を False に戻し、camera の
+#   transform も初期状態のものに付け替える。camera の設定は場面が
+#   変わっても残り続けるので、戻し忘れると他の場面全部の見た目が
+#   変わってしまう。だから「有効化したら、同じ場所で無効化する」が鉄則。
+
+init python:
+
+    def parallax_camera_func(trans, st, at):
+        # camera 用 transform の中身。ATL の function から繰り返し呼ばれる。
+        # マウス位置が画面中心からどれだけ離れているかを見て、
+        # 逆向きに少しだけ camera をずらす。ずらし量はごく小さくする
+        # （大きくすると酔うし、画像の端が見えてしまう）。
+        mx, my = renpy.get_mouse_pos()
+        if mx is None:
+            return 0.05
+        cx = config.screen_width / 2.0
+        cy = config.screen_height / 2.0
+        trans.xoffset = int((cx - mx) * 0.05)
+        trans.yoffset = int((cy - my) * 0.05)
+        # 戻り値は「次にこの関数を呼ぶまでの秒数」。小さいほど滑らかだが
+        # 処理も増えるので、0.05 秒くらいが目安。
+        return 0.05
+
+# マウスに追随する camera 用 transform。
+transform camera_parallax:
+    function parallax_camera_func
+
+# camera を止めるための、何もしない transform。
+# 終了時はこれに付け替えて、視差の動きを止める。
+transform camera_stop:
+    xoffset 0
+    yoffset 0
+
+# 奥行き用の transform。zpos だけが違う3枚を用意する。
+transform depth_far:
+    zpos -400
+    align (0.5, 0.5)
+
+transform depth_mid:
+    zpos -160
+    align (0.5, 0.5)
+
+transform depth_prop:
+    zpos 60
+    align (0.16, 0.78)
+
+transform depth_front:
+    zpos 170
+    align (0.74, 0.92)
+
+# カードが横にめくれる回転。transform 自体に perspective を付けるのが
+# ポイントで、これが無いと回転が平たく潰れて見える。
+transform card_flip:
+    perspective True
+    align (0.5, 0.42)
+    yrotate 0
+    linear 1.6 yrotate 360
+    repeat
+
+# 3D Stage 用の追加画像。大きな背景と小物とカードを、色つきの板で代用する。
+# 本番では、この Solid を描いた画像に差し替えるだけでよい。
+image bg farwall = Transform(Solid("#2c3a58"), xysize=(2800, 1600))
+image prop block = Transform(Solid("#c96f2e"), xysize=(300, 300))
+image prop card = Transform(Solid("#e8e3d5"), xysize=(340, 480))
+
+label sample_3d:
+    scene bg room
+    show chara at center
+    a "3D Stage のサンプルだよ。まず、この舞台を3D化するね。"
+    a "マウスを動かす（スマホならタッチして動かす）と、奥と手前でずれ方が変わるのが分かると思う。"
+    # 3D Stage を有効化し、camera に視差用の transform を当てる。
+    camera:
+        perspective True
+    camera at camera_parallax
+    # 奥から順に置く: 遠い壁 → 今までの背景 → 小物 → 立ち絵（手前）。
+    # 同じ大きさの画像でも、zpos が違うだけで見える大きさが変わる。
+    scene bg farwall at depth_far
+    show bg room at depth_mid
+    show prop block at depth_prop
+    show chara at depth_front
+    a "ほら、壁は遠くに小さく、ぼくは手前に大きく出たでしょ。"
+    a "置いてあるのは全部ただの2D画像。奥行きは zpos と perspective が作ってるんだ。"
+    a "次はカードを1枚、3Dでめくってみるよ。"
+    show prop card at card_flip
+    a "この回転は yrotate。カード側の transform にも perspective を付けるのがコツだよ。"
+    a "トランプやカードをめくる演出は、この応用で作れる。"
+    hide prop card
+    # 終了処理: camera を止めて、perspective を元に戻す。
+    # この2つを忘れると、ハブに戻ったあとも視差と奥行きが残ってしまう。
+    camera at camera_stop
+    camera:
+        perspective False
+    scene bg room
+    show chara at center
+    a "camera は元に戻したよ。こんなふうに、有効化と無効化は必ずセットで書いてね。"
     return
