@@ -14,9 +14,11 @@
 #
 # 注意:
 #   - ブランチ名は英小文字とハイフンのみ（URL のフォルダ名になるため）。
+#   - SDK と成果物は必ずリポジトリの外（$RUNNER_TEMP）に置く。
+#     プロジェクトフォルダの中に置くと、Ren'Py の配布ビルドが
+#     SDK ごと game.zip に詰め込んでしまい、100MB を超えて push できなくなる。
 #   - main の公開では、過去の main ビルドにだけ存在した古いファイルが
-#     ルートに残ることがある。ファイル名はほぼ固定なので実害は小さいが、
-#     気になる場合は gh-pages のルートを手動で掃除する。
+#     ルートに残ることがある。ファイル名はほぼ固定なので実害は小さい。
 
 name: build-and-deploy-web
 
@@ -37,29 +39,34 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RENPY_VERSION: "8.6.1"
+      SDK_DIR: ${{ runner.temp }}/renpy-sdk
+      OUT_DIR: ${{ runner.temp }}/webout
     steps:
       - uses: actions/checkout@v4
 
-      - name: Ren'Py SDK を取得
+      - name: Ren'Py SDK を取得（リポジトリの外に置く）
         run: |
+          cd "$RUNNER_TEMP"
           curl -L -o sdk.tar.bz2 "https://www.renpy.org/dl/${RENPY_VERSION}/renpy-${RENPY_VERSION}-sdk.tar.bz2"
           tar -xjf sdk.tar.bz2
-          mv "renpy-${RENPY_VERSION}-sdk" sdk
+          mv "renpy-${RENPY_VERSION}-sdk" renpy-sdk
           curl -L -o web.zip "https://www.renpy.org/dl/${RENPY_VERSION}/renpy-${RENPY_VERSION}-web.zip"
-          unzip -o web.zip -d sdk
-          test -f sdk/web/hash.txt
+          unzip -o web.zip -d renpy-sdk
+          test -f renpy-sdk/web/hash.txt
 
       - name: Lint
         run: |
-          cd sdk
-          SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy ./renpy.sh ../game lint || true
+          SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
+            "$SDK_DIR/renpy.sh" "$GITHUB_WORKSPACE" lint || true
 
       - name: Web ビルド
         run: |
-          cd sdk
           SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy \
-            ./renpy.sh launcher web_build "$GITHUB_WORKSPACE" --destination "$GITHUB_WORKSPACE/webout"
-          test -f "$GITHUB_WORKSPACE/webout/index.html"
+            "$SDK_DIR/renpy.sh" launcher web_build "$GITHUB_WORKSPACE" --destination "$OUT_DIR"
+          test -f "$OUT_DIR/index.html"
+          ls -lh "$OUT_DIR"
+          # game.zip が 90MB を超えたら異常（何かを巻き込んでいる）ので止める
+          test "$(stat -c%s "$OUT_DIR/game.zip")" -lt 94371840
 
       - name: 公開（main → ルート）
         if: github.ref == 'refs/heads/main'
@@ -67,7 +74,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
-          publish_dir: ./webout
+          publish_dir: ${{ env.OUT_DIR }}
           keep_files: true
           commit_message: "deploy main: ${{ github.sha }}"
 
@@ -77,7 +84,7 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
-          publish_dir: ./webout
+          publish_dir: ${{ env.OUT_DIR }}
           destination_dir: ${{ github.ref_name }}
           keep_files: true
           commit_message: "deploy ${{ github.ref_name }}: ${{ github.sha }}"
