@@ -726,6 +726,13 @@ label sample_escape:
 #     "end"    … 「閉じる」ボタンで終わる
 # - プレイヤーが選んだ返信は、自分の吹き出しとして履歴に積まれてから、
 #   相手の返事が分岐する。「選ぶ→自分の文が出る→相手が返す」の順番が大事。
+# - 大きさは必ず画面サイズからの相対で決めること（重要）:
+#   このテストプロジェクトには gui.init が無く、解像度は Ren'Py 既定の
+#   800×600。以前はスマホ枠を 720×960 の固定サイズで作っていたため、
+#   画面からはみ出してヘッダも吹き出しもボタンも全部画面外に出てしまい、
+#   「暗い紺色の画面で無反応」に見えるバグになった。
+#   実プロジェクト（gui.init で解像度を決める）でも、相対指定にしておけば
+#   解像度が変わっても崩れないので安全。
 
 init python:
 
@@ -742,82 +749,101 @@ screen chat_screen(mode, options=None):
     # プレイヤーの操作を待たずに進めたい場面は、この形が便利。
     if mode == "typing":
         timer 1.1 repeat False action Return("typed")
+    # スマホの大きさは画面サイズから逆算する（固定値で作らない）。
+    # 高さは「画面いっぱい - 上下の余白」、幅は縦長比（0.72倍）を保ちつつ
+    # 画面幅にも収まる方を採用する。800×600 では約 403×560 になる。
+    $ phone_h = min(960, config.screen_height - 40)
+    $ phone_w = min(int(phone_h * 0.72), config.screen_width - 40)
+    $ phone_inner_w = phone_w - 32        # 左右マージン16ずつを引いた内側の幅
+    $ bubble_max_w = phone_w - 140        # 吹き出しの最大幅（反対側に余白を残す）
+    $ header_h = 64                       # ヘッダの帯の高さ
+    $ button_h = 44                       # 下部ボタンの高さ
     fixed:
         xalign 0.5
         yalign 0.5
-        xysize (720, 960)
+        xysize (phone_w, phone_h)
         # スマホ本体とヘッダの帯。
-        add Solid("#141a24") xysize (720, 960)
-        add Solid("#2c394d") xysize (720, 88)
+        add Solid("#141a24") xysize (phone_w, phone_h)
+        add Solid("#2c394d") xysize (phone_w, header_h)
         text "相手役":
-            xpos 28
-            ypos 24
+            xpos 20
+            ypos 16
             color "#ffffff"
-            size 34
-        # 吹き出し一覧。表示は最後の7件まで（古い分は表示から落とす）。
+            size 26
+        # 吹き出し一覧。表示は最後の5件まで（古い分は表示から落とす。
+        # 小さい画面でもボタン領域に被らないよう、件数も画面に合わせて絞る）。
         vbox:
-            xpos 24
-            ypos 108
-            xsize 672
-            spacing 12
-            for who, msg in chat_log[-7:]:
+            xpos 16
+            ypos header_h + 12
+            xsize phone_inner_w
+            spacing 10
+            for who, msg in chat_log[-5:]:
                 if who == "other":
                     frame:
                         xalign 0.0
-                        xmaximum 480
+                        xmaximum bubble_max_w
                         background Solid("#3a4658")
-                        padding (16, 10)
-                        text msg color "#ffffff" size 30
+                        padding (12, 8)
+                        text msg color "#ffffff" size 26
                 elif who == "me":
                     frame:
                         xalign 1.0
-                        xmaximum 480
+                        xmaximum bubble_max_w
                         background Solid("#2e7d4f")
-                        padding (16, 10)
-                        text msg color "#ffffff" size 30
+                        padding (12, 8)
+                        text msg color "#ffffff" size 26
                 else:
                     # "typing" の吹き出し。相手が入力中っぽい見た目にする。
                     frame:
                         xalign 0.0
                         background Solid("#3a4658")
-                        padding (16, 10)
-                        text "……" color "#cfd8e3" size 30
+                        padding (12, 8)
+                        text "……" color "#cfd8e3" size 26
         # 下部: モードごとにボタンの出し分け。
+        # 位置はスマホの下端から逆算する（上からの絶対座標で置かない）。
         if mode == "reply":
             vbox:
-                xpos 24
-                ypos 780
-                xsize 672
+                xpos 16
+                ypos phone_h - (button_h * 2) - 10 - 16
+                xsize phone_inner_w
                 spacing 10
                 textbutton options[0]:
-                    xsize 672
+                    xsize phone_inner_w
+                    ysize button_h
                     background Solid("#37506e")
                     hover_background Solid("#45668c")
                     text_color "#ffffff"
+                    text_size 26
                     action Return("reply1")
                 textbutton options[1]:
-                    xsize 672
+                    xsize phone_inner_w
+                    ysize button_h
                     background Solid("#37506e")
                     hover_background Solid("#45668c")
                     text_color "#ffffff"
+                    text_size 26
                     action Return("reply2")
         elif mode == "next":
             textbutton "次へ":
-                xpos 24
-                ypos 856
-                xsize 672
+                xpos 16
+                ypos phone_h - button_h - 16
+                xsize phone_inner_w
+                ysize button_h
                 background Solid("#37506e")
                 hover_background Solid("#45668c")
                 text_color "#ffffff"
+                text_size 26
                 action Return("next")
         elif mode == "end":
             textbutton "スマホを閉じる":
-                xpos 24
-                ypos 856
-                xsize 672
+                xpos 16
+                ypos phone_h - button_h - 16
+                xsize phone_inner_w
+                ysize button_h
                 background Solid("#37506e")
                 hover_background Solid("#45668c")
                 text_color "#ffffff"
+                text_size 26
                 action Return("end")
 
 label sample_chat:
@@ -1027,18 +1053,29 @@ label sample_timed:
 # - 各画像の奥行きは、transform の zpos で決める。zpos 0 が基準面、
 #   マイナスが奥、プラスが手前。xpos / ypos は「zpos 0 の面での座標」
 #   として解釈される。
-# - 視差（パララックス）は、camera 自体に transform を当てて、
-#   マウス位置（スマホではタッチ位置）に応じて camera のオフセットを
-#   少しずつ動かすことで作る。camera が動くと、奥の画像と手前の画像で
-#   ずれ量が変わるので、「奥行きがある」ように見える。
-#   transform の更新は ATL の function で行う（知られた定番の形）。
+# - 視差（パララックス）は、camera のオフセットをマウス位置（スマホでは
+#   タッチ位置）に応じて少しずつ動かすことで作る。camera が動くと、
+#   奥の画像と手前の画像でずれ量が変わるので、「奥行きがある」ように見える。
+#   camera の動きは、camera: ブロックの中に ATL（function）として書く。
+#   これが公式ドキュメントの形。
+# - 【教訓】camera の transform を別の `camera at ...` 文で差し替えては
+#   いけない。以前は `camera:` で perspective True にした直後、別文の
+#   `camera at camera_parallax` で transform を差し替えたところ、
+#   camera の既定配置（画面中心＋奥行き方向の距離）が失われて、
+#   camera 適用区間だけ全画面が真っ黒になるバグになった。
+#   camera の動きは camera: ブロックの中で書くこと。
+# - 奥に置く背景には zzoom True を付ける。zzoom が無いと、奥の画像は
+#   透視投影で縮んで表示され、周りに黒い余白が出てしまう。zzoom True は
+#   「奥行きで縮む分を拡大して相殺する」公式ドキュメント推奨の設定。
 # - カードの回転は、transform の yrotate。板が横方向に3D回転する。
 #   回転を立体的に見せるには、その transform 自体にも
 #   perspective True を付ける必要がある（camera 側とは別に）。
-# - 終わったら必ず camera の perspective を False に戻し、camera の
-#   transform も初期状態のものに付け替える。camera の設定は場面が
+# - 終わったら必ず camera: ブロックで perspective を False に戻し、
+#   オフセット（xoffset / yoffset）も 0 に戻す。camera の設定は場面が
 #   変わっても残り続けるので、戻し忘れると他の場面全部の見た目が
 #   変わってしまう。だから「有効化したら、同じ場所で無効化する」が鉄則。
+# - zpos の目安: このプロジェクトは 800×600 で、camera の奥行き方向の
+#   距離は約520。zpos はそれより小さい範囲で控えめに振る。
 
 init python:
 
@@ -1058,23 +1095,16 @@ init python:
         # 処理も増えるので、0.05 秒くらいが目安。
         return 0.05
 
-# マウスに追随する camera 用 transform。
-transform camera_parallax:
-    function parallax_camera_func
-
-# camera を止めるための、何もしない transform。
-# 終了時はこれに付け替えて、視差の動きを止める。
-transform camera_stop:
-    xoffset 0
-    yoffset 0
-
-# 奥行き用の transform。zpos だけが違う3枚を用意する。
+# 奥行き用の transform。zpos だけが違う4枚を用意する。
+# 背景2枚には zzoom True を付け、奥で縮んで黒い余白が出ないようにする。
 transform depth_far:
-    zpos -400
+    zpos -350
+    zzoom True
     align (0.5, 0.5)
 
 transform depth_mid:
-    zpos -160
+    zpos -150
+    zzoom True
     align (0.5, 0.5)
 
 transform depth_prop:
@@ -1082,7 +1112,7 @@ transform depth_prop:
     align (0.16, 0.78)
 
 transform depth_front:
-    zpos 170
+    zpos 150
     align (0.74, 0.92)
 
 # カードが横にめくれる回転。transform 自体に perspective を付けるのが
@@ -1105,10 +1135,12 @@ label sample_3d:
     show chara at center
     a "3D Stage のサンプルだよ。まず、この舞台を3D化するね。"
     a "マウスを動かす（スマホならタッチして動かす）と、奥と手前でずれ方が変わるのが分かると思う。"
-    # 3D Stage を有効化し、camera に視差用の transform を当てる。
+    # 3D Stage を有効化し、視差の動きも同じ camera: ブロックの中で指定する。
+    # （別の `camera at ...` 文で transform を差し替えると、camera の
+    # 既定配置が消えて真っ黒になる。上の【教訓】参照。）
     camera:
         perspective True
-    camera at camera_parallax
+        function parallax_camera_func
     # 奥から順に置く: 遠い壁 → 今までの背景 → 小物 → 立ち絵（手前）。
     # 同じ大きさの画像でも、zpos が違うだけで見える大きさが変わる。
     scene bg farwall at depth_far
@@ -1122,11 +1154,13 @@ label sample_3d:
     a "この回転は yrotate。カード側の transform にも perspective を付けるのがコツだよ。"
     a "トランプやカードをめくる演出は、この応用で作れる。"
     hide prop card
-    # 終了処理: camera を止めて、perspective を元に戻す。
-    # この2つを忘れると、ハブに戻ったあとも視差と奥行きが残ってしまう。
-    camera at camera_stop
+    # 終了処理: camera: ブロックで perspective を切り、視差で付けた
+    # オフセットも 0 に戻す。function を書かなければ動きも止まる。
+    # これを忘れると、ハブに戻ったあとも視差と奥行きが残ってしまう。
     camera:
         perspective False
+        xoffset 0
+        yoffset 0
     scene bg room
     show chara at center
     a "camera は元に戻したよ。こんなふうに、有効化と無効化は必ずセットで書いてね。"
