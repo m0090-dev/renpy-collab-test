@@ -1,3 +1,6 @@
+init python:
+    style.default.font = "fonts/NotoSansJP-Regular.ttf"
+
 define config.name = _("Ren'Py Web Sample")
 define config.version = "1.0"
 define build.name = "weeb_sample"
