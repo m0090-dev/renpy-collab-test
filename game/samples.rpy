@@ -758,6 +758,11 @@ screen chat_screen(mode, options=None):
     $ bubble_max_w = phone_w - 140        # 吹き出しの最大幅（反対側に余白を残す）
     $ header_h = 64                       # ヘッダの帯の高さ
     $ button_h = 44                       # 下部ボタンの高さ
+    # 下部ボタン領域の高さ（ボタン本体＋間隔＋下マージン）。モードで変わる。
+    $ buttons_h = (button_h * 2 + 10 + 16) if mode == "reply" else (button_h + 16) if mode in ("next", "end") else 16
+    # 吹き出し領域は「ヘッダ下〜ボタン領域の上」で高さを固定する。
+    $ bubbles_top = header_h + 12
+    $ bubbles_h = phone_h - bubbles_top - buttons_h - 8
     fixed:
         xalign 0.5
         yalign 0.5
@@ -770,35 +775,41 @@ screen chat_screen(mode, options=None):
             ypos 16
             color "#ffffff"
             size 26
-        # 吹き出し一覧。表示は最後の5件まで（古い分は表示から落とす。
-        # 小さい画面でもボタン領域に被らないよう、件数も画面に合わせて絞る）。
-        vbox:
+        # 吹き出し一覧。表示は最後の5件まで（古い分は表示から落とす）。
+        # 吹き出し領域とボタン領域は分けて確保すること。重ねると、吹き出しが
+        # 増えたときに最新のメッセージがボタンに隠れて読めなくなる。
+        # 領域は高さ固定で、中の吹き出し列は下詰め（最新がボタン直上）。
+        # はみ出した古い分は領域の上端で見切れる（fixed が clip する）。
+        fixed:
             xpos 16
-            ypos header_h + 12
-            xsize phone_inner_w
-            spacing 10
-            for who, msg in chat_log[-5:]:
-                if who == "other":
-                    frame:
-                        xalign 0.0
-                        xmaximum bubble_max_w
-                        background Solid("#3a4658")
-                        padding (12, 8)
-                        text msg color "#ffffff" size 26
-                elif who == "me":
-                    frame:
-                        xalign 1.0
-                        xmaximum bubble_max_w
-                        background Solid("#2e7d4f")
-                        padding (12, 8)
-                        text msg color "#ffffff" size 26
-                else:
-                    # "typing" の吹き出し。相手が入力中っぽい見た目にする。
-                    frame:
-                        xalign 0.0
-                        background Solid("#3a4658")
-                        padding (12, 8)
-                        text "……" color "#cfd8e3" size 26
+            ypos bubbles_top
+            xysize (phone_inner_w, bubbles_h)
+            vbox:
+                yalign 1.0
+                xsize phone_inner_w
+                spacing 10
+                for who, msg in chat_log[-5:]:
+                    if who == "other":
+                        frame:
+                            xalign 0.0
+                            xmaximum bubble_max_w
+                            background Solid("#3a4658")
+                            padding (12, 8)
+                            text msg color "#ffffff" size 26
+                    elif who == "me":
+                        frame:
+                            xalign 1.0
+                            xmaximum bubble_max_w
+                            background Solid("#2e7d4f")
+                            padding (12, 8)
+                            text msg color "#ffffff" size 26
+                    else:
+                        # "typing" の吹き出し。相手が入力中っぽい見た目にする。
+                        frame:
+                            xalign 0.0
+                            background Solid("#3a4658")
+                            padding (12, 8)
+                            text "……" color "#cfd8e3" size 26
         # 下部: モードごとにボタンの出し分け。
         # 位置はスマホの下端から逆算する（上からの絶対座標で置かない）。
         if mode == "reply":
