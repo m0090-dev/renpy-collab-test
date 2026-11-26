@@ -241,6 +241,7 @@ screen quick_menu():
         hbox:
             id "quick_hbox"
             style_prefix "quick"
+	    style "quick_menu"
             xalign 0.5
             yalign 1.0
             ysize quick_h   # ← ここで高さを固定
