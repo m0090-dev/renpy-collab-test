@@ -35,6 +35,8 @@ label start:
             call samples2_main
         "探索・推理を見る":
             call samples2_search
+        "パソコンを触る":
+            call samples2_desktop_main
         "見ない":
             pass
     a "おわり。最後まで進めたら成功だよ。"

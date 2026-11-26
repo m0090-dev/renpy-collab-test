@@ -756,3 +756,447 @@ label samples2_deduce_q3:
     "あなた" "一件落着、だね。じゃあそのプリン、ありがたくもらうよ。"
     a "次からは名札つけとく。……名前、プリンに書くけど。"
     return
+
+
+# ============================================================
+# 場面3: デスクトップ画面（マウスで色々触れる＋中にミニゲーム）
+# ============================================================
+# 仕組み:
+#   - 画面全体がパソコンのデスクトップ。アイコンを押すと窓が開く
+#   - 窓はタイトル部分をつかんで動かせる（ドラッグ）。×で閉じる
+#   - 中身: フォルダ（ファイルを開く）/ メモ帳 / ブラウザ（偽ページ）/
+#     ゴミ箱（空にできる）/ 写真ビューア / ゲーム窓
+#   - ゲーム窓の中にミニゲーム「プリンキャッチ」: 出てきたプリンを
+#     消える前に押す。30秒で何個取れるか
+#   - 下のタスクバーに時計（進む）と、閉じるボタン
+init python:
+    import random
+
+    # --- ミニゲーム「プリンキャッチ」の状態と動き ---
+    class S2Mole(object):
+        def __init__(self):
+            self.running = False
+            self.played = False
+            self.score = 0
+            self.best = 0
+            self.time_left = 30.0
+            self.ttl = 0.0      # 今のプリンが消えるまで
+            self.x = 100
+            self.y = 100
+
+        def respawn(self):
+            self.x = random.randint(0, 440)
+            self.y = random.randint(0, 280)
+            self.ttl = 1.1
+
+    s2_mole = S2Mole()
+
+    def s2_mole_start():
+        s2_mole.running = True
+        s2_mole.played = True
+        s2_mole.score = 0
+        s2_mole.time_left = 30.0
+        s2_mole.respawn()
+
+    def s2_mole_hit():
+        if s2_mole.running:
+            s2_mole.score += 1
+            s2_mole.respawn()
+
+    def s2_mole_tick():
+        # 0.1秒ごとに画面のタイマから呼ばれる
+        if not s2_mole.running:
+            return
+        s2_mole.time_left -= 0.1
+        s2_mole.ttl -= 0.1
+        if s2_mole.ttl <= 0:
+            s2_mole.respawn()
+        if s2_mole.time_left <= 0:
+            s2_mole.time_left = 0.0
+            s2_mole.running = False
+            if s2_mole.score > s2_mole.best:
+                s2_mole.best = s2_mole.score
+
+    # --- デスクトップの小物用 ---
+    def s2_clock_advance():
+        # タスクバーの時計を1分進める（1秒ごとに呼ばれる）
+        store.s2_clock_min = (getattr(store, "s2_clock_min", 904) + 1) % 1440
+        store.s2_clock_text = "%02d:%02d" % (store.s2_clock_min // 60, store.s2_clock_min % 60)
+
+    def s2_note_secret():
+        store.s2_pc_secret = True
+
+    def s2_note_trash():
+        store.s2_pc_trash = True
+
+# デスクトップ画面本体
+screen samples2_pc():
+    modal True
+    default win_folder = False
+    default win_memo = False
+    default win_browser = False
+    default win_trash = False
+    default win_photo = False
+    default win_game = False
+    default start_open = False
+    default memo_title = "買い物メモ"
+    default memo_body = "・プリン（高いやつ）\n・牛乳\n・たまご\n・あとプリン（予備）"
+    default browser_page = 1
+    default trash_empty = False
+
+    # 壁紙
+    add Solid("#38608c")
+    add Transform(Solid("#2f5480"), xysize=(1280, 300)) ypos 420
+    add Transform(Solid("#47779f"), xysize=(340, 340)) pos (880, 90)
+
+    # 時計とミニゲームのタイマ
+    timer 1.0 repeat True action Function(s2_clock_advance)
+    timer 0.1 repeat True action Function(s2_mole_tick)
+
+    # --- アイコン（左の列） ---
+    vbox:
+        pos (26, 26)
+        spacing 20
+
+        button:
+            action SetScreenVariable("win_folder", True)
+            vbox:
+                frame:
+                    xysize (58, 58)
+                    background Solid("#ffd98a")
+                    text "F" size 30 color "#10151f" align (0.5, 0.5)
+                text "フォルダ" size 20 color "#ffffff"
+        button:
+            action SetScreenVariable("win_memo", True)
+            vbox:
+                frame:
+                    xysize (58, 58)
+                    background Solid("#f5f0e1")
+                    text "M" size 30 color "#10151f" align (0.5, 0.5)
+                text "メモ帳" size 20 color "#ffffff"
+        button:
+            action SetScreenVariable("win_browser", True)
+            vbox:
+                frame:
+                    xysize (58, 58)
+                    background Solid("#7ec8e3")
+                    text "W" size 30 color "#10151f" align (0.5, 0.5)
+                text "ブラウザ" size 20 color "#ffffff"
+        button:
+            action SetScreenVariable("win_game", True)
+            vbox:
+                frame:
+                    xysize (58, 58)
+                    background Solid("#e08a4c")
+                    text "G" size 30 color "#10151f" align (0.5, 0.5)
+                text "ゲーム" size 20 color "#ffffff"
+        button:
+            action SetScreenVariable("win_trash", True)
+            vbox:
+                frame:
+                    xysize (58, 58)
+                    background Solid("#9aa7b8")
+                    text "T" size 30 color "#10151f" align (0.5, 0.5)
+                text "ゴミ箱" size 20 color "#ffffff"
+
+    # --- 窓たち（タイトル部分をつかんで動かせる） ---
+    draggroup:
+
+        if win_folder:
+            drag:
+                drag_name "folder"
+                draggable True
+                xpos 240
+                ypos 80
+                frame:
+                    background Solid("#1d2739")
+                    padding (0, 0)
+                    vbox:
+                        frame:
+                            xysize (430, 44)
+                            background Solid("#10151f")
+                            hbox:
+                                xfill True
+                                text " フォルダ" size 24 color "#ffffff" yalign 0.5
+                                textbutton "×":
+                                    text_size 26
+                                    action SetScreenVariable("win_folder", False)
+                        vbox:
+                            spacing 8
+                            xpos 16
+                            ypos 10
+                            textbutton "プリンの写真.jpg":
+                                text_size 26
+                                action [SetScreenVariable("win_photo", True)]
+                            textbutton "買い物メモ.txt":
+                                text_size 26
+                                action [SetScreenVariable("win_memo", True),
+                                        SetScreenVariable("memo_title", "買い物メモ"),
+                                        SetScreenVariable("memo_body", "・プリン（高いやつ）\n・牛乳\n・たまご\n・あとプリン（予備）")]
+                            textbutton "見ちゃダメ.txt":
+                                text_size 26
+                                action [SetScreenVariable("win_memo", True),
+                                        SetScreenVariable("memo_title", "見ちゃダメ"),
+                                        SetScreenVariable("memo_body", "来週の誕生日、サプライズで\nプリンを用意すること。\n本人には絶対に内緒。"),
+                                        Function(s2_note_secret)]
+                            null height 8
+
+        if win_photo:
+            drag:
+                drag_name "photo"
+                draggable True
+                xpos 620
+                ypos 130
+                frame:
+                    background Solid("#1d2739")
+                    vbox:
+                        frame:
+                            xysize (360, 44)
+                            background Solid("#10151f")
+                            hbox:
+                                xfill True
+                                text " プリンの写真.jpg" size 24 color "#ffffff" yalign 0.5
+                                textbutton "×":
+                                    text_size 26
+                                    action SetScreenVariable("win_photo", False)
+                        add Transform(Solid("#e8a33d"), xysize=(328, 220)) xalign 0.5
+                        text " この前のプリン。つやつや。" size 22 color "#cfe9f5" xalign 0.5
+                        null height 8
+
+        if win_memo:
+            drag:
+                drag_name "memo"
+                draggable True
+                xpos 330
+                ypos 200
+                frame:
+                    background Solid("#f5f0e1")
+                    vbox:
+                        frame:
+                            xysize (400, 44)
+                            background Solid("#10151f")
+                            hbox:
+                                xfill True
+                                text " [memo_title]" size 24 color "#ffffff" yalign 0.5
+                                textbutton "×":
+                                    text_size 26
+                                    action SetScreenVariable("win_memo", False)
+                        text " [memo_body]" size 24 color "#26303f" xpos 16 ypos 12
+                        null height 16
+
+        if win_browser:
+            drag:
+                drag_name "browser"
+                draggable True
+                xpos 420
+                ypos 90
+                frame:
+                    background Solid("#e8edf4")
+                    vbox:
+                        frame:
+                            xysize (520, 44)
+                            background Solid("#10151f")
+                            hbox:
+                                xfill True
+                                text " ブラウザ" size 24 color "#ffffff" yalign 0.5
+                                textbutton "×":
+                                    text_size 26
+                                    action SetScreenVariable("win_browser", False)
+                        frame:
+                            xysize (488, 36)
+                            xalign 0.5
+                            background Solid("#ffffff")
+                            text " https://pudding-news.example/" size 20 color "#5f748f" yalign 0.5
+                        if browser_page == 1:
+                            vbox:
+                                xpos 16
+                                spacing 6
+                                text "プリン速報" size 30 color "#26303f"
+                                text "今週の新作プリンは「固め派」が勝利。\nやわらか派、巻き返しなるか。" size 22 color "#26303f"
+                                textbutton "→ レビュー記事を読む":
+                                    text_size 24
+                                    text_color "#2f6db3"
+                                    action SetScreenVariable("browser_page", 2)
+                                null height 8
+                        else:
+                            vbox:
+                                xpos 16
+                                spacing 6
+                                text "レビュー: 高いやつ" size 30 color "#26303f"
+                                text "★★★★★ 文句なし。\nカラメルのほろ苦さが決め手。" size 22 color "#26303f"
+                                textbutton "← トップに戻る":
+                                    text_size 24
+                                    text_color "#2f6db3"
+                                    action SetScreenVariable("browser_page", 1)
+                                null height 8
+
+        if win_trash:
+            drag:
+                drag_name "trash"
+                draggable True
+                xpos 520
+                ypos 260
+                frame:
+                    background Solid("#1d2739")
+                    vbox:
+                        frame:
+                            xysize (400, 44)
+                            background Solid("#10151f")
+                            hbox:
+                                xfill True
+                                text " ゴミ箱" size 24 color "#ffffff" yalign 0.5
+                                textbutton "×":
+                                    text_size 26
+                                    action SetScreenVariable("win_trash", False)
+                        vbox:
+                            xpos 16
+                            ypos 10
+                            spacing 8
+                            if trash_empty:
+                                text " 空っぽ。すっきりした。" size 24 color "#cfe9f5"
+                            else:
+                                text " 古いプリンの容器 x3" size 24 color "#cfe9f5"
+                                text " 食べかけメモ.txt" size 24 color "#cfe9f5"
+                                textbutton "ゴミ箱を空にする":
+                                    text_size 24
+                                    text_color "#ffd98a"
+                                    action [SetScreenVariable("trash_empty", True), Function(s2_note_trash)]
+                            null height 8
+
+        if win_game:
+            drag:
+                drag_name "game"
+                draggable True
+                xpos 300
+                ypos 110
+                frame:
+                    background Solid("#1d2739")
+                    vbox:
+                        frame:
+                            xysize (560, 44)
+                            background Solid("#10151f")
+                            hbox:
+                                xfill True
+                                text " プリンキャッチ" size 24 color "#ffffff" yalign 0.5
+                                textbutton "×":
+                                    text_size 26
+                                    action SetScreenVariable("win_game", False)
+                        hbox:
+                            xpos 16
+                            ypos 8
+                            spacing 24
+                            text "スコア [s2_mole.score]" size 24 color "#ffe1a8"
+                            if s2_mole.running:
+                                text "残り [s2_mole.time_left:.0f] 秒" size 24 color "#cfe9f5"
+                            elif s2_mole.played:
+                                text "ベスト [s2_mole.best]" size 24 color "#cfe9f5"
+                        fixed:
+                            xysize (528, 344)
+                            add Solid("#20344d")
+                            if s2_mole.running:
+                                button:
+                                    pos (s2_mole.x, s2_mole.y)
+                                    xysize (72, 72)
+                                    background Solid("#ffd98a")
+                                    text "プリン" size 18 color "#10151f" align (0.5, 0.5)
+                                    action Function(s2_mole_hit)
+                            elif s2_mole.played:
+                                vbox:
+                                    align (0.5, 0.5)
+                                    spacing 10
+                                    text "結果: [s2_mole.score] 個！" size 30 color "#ffffff" xalign 0.5
+                                    textbutton "もう一回":
+                                        text_size 26
+                                        xalign 0.5
+                                        action Function(s2_mole_start)
+                            else:
+                                vbox:
+                                    align (0.5, 0.5)
+                                    spacing 10
+                                    text "出てきたプリンを、消える前に押そう。\n制限時間は30秒。" size 24 color "#ffffff" xalign 0.5
+                                    textbutton "スタート":
+                                        text_size 28
+                                        xalign 0.5
+                                        action Function(s2_mole_start)
+                        null height 8
+
+    # --- スタートメニュー ---
+    if start_open:
+        frame:
+            pos (12, 520)
+            background Solid("#10151f")
+            vbox:
+                spacing 6
+                xpos 10
+                ypos 8
+                textbutton "ゲームを開く":
+                    text_size 26
+                    action [SetScreenVariable("win_game", True), SetScreenVariable("start_open", False)]
+                textbutton "窓を全部閉じる":
+                    text_size 26
+                    action [SetScreenVariable("win_folder", False), SetScreenVariable("win_memo", False),
+                            SetScreenVariable("win_browser", False), SetScreenVariable("win_trash", False),
+                            SetScreenVariable("win_photo", False), SetScreenVariable("win_game", False),
+                            SetScreenVariable("start_open", False)]
+                textbutton "デスクトップを閉じる":
+                    text_size 26
+                    text_color "#ffd98a"
+                    action Return("done")
+                null height 4
+
+    # --- タスクバー ---
+    frame:
+        xfill True
+        ysize 56
+        ypos 664
+        background Solid("#10151f")
+        hbox:
+            xfill True
+            xpos 12
+            yalign 0.5
+            textbutton "スタート":
+                text_size 26
+                action ToggleScreenVariable("start_open")
+            null width 30
+            if win_folder:
+                text "フォルダ " size 22 color "#8fa8c8" yalign 0.5
+            if win_memo:
+                text "メモ帳 " size 22 color "#8fa8c8" yalign 0.5
+            if win_browser:
+                text "ブラウザ " size 22 color "#8fa8c8" yalign 0.5
+            if win_game:
+                text "ゲーム " size 22 color "#8fa8c8" yalign 0.5
+            null
+            text "[s2_clock_text] " size 24 color "#ffffff" yalign 0.5
+            textbutton "閉じる":
+                text_size 24
+                action Return("done")
+
+label samples2_desktop_main:
+    scene bg room at wave_light
+    show chara at center
+    a "ねえ、私のパソコン貸してあげる。好きに触っていいよ。"
+    "あなた" "いいの？　……じゃあ遠慮なく。"
+    a "アイコン押せば色々開くし、窓は上の部分をつかめば動かせる。ゲームもあるから。"
+    a "下の「閉じる」か、スタートの中の「デスクトップを閉じる」で終わりにしてね。"
+
+    $ s2_clock_min = 904
+    $ s2_clock_text = "15:04"
+    $ s2_pc_secret = False
+    $ s2_pc_trash = False
+    window hide
+    call screen samples2_pc
+    window show
+
+    scene bg room
+    show chara at center
+    if s2_mole.best >= 10:
+        a "プリンキャッチ、[s2_mole.best]個も取ったの？　反射神経いいじゃん。"
+    if s2_pc_secret:
+        a "……ねえ、見ちゃダメって書いてあるファイル、開いたでしょ。"
+        "あなた" "あれは……開いたら読める方が悪いと思う。"
+        a "もう。サプライズの意味がなくなるでしょ。"
+    if s2_pc_trash:
+        a "ゴミ箱、空にしてくれたんだ。ありがと、助かる。"
+    a "まあ、楽しんでもらえたなら何よりだよ。"
+    return
