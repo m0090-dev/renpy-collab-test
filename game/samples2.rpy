@@ -911,15 +911,19 @@ screen samples2_pc():
                 frame:
                     background Solid("#1d2739")
                     padding (0, 0)
+                    xsize 430
                     vbox:
                         frame:
                             xysize (430, 44)
+                            padding (0, 0)
                             background Solid("#10151f")
-                            hbox:
-                                xfill True
+                            fixed:
                                 text " フォルダ" size 24 color "#ffffff" yalign 0.5
                                 textbutton "×":
                                     text_size 26
+                                    xalign 1.0
+                                    yalign 0.5
+                                    xoffset -12
                                     action SetScreenVariable("win_folder", False)
                         vbox:
                             spacing 8
@@ -949,16 +953,22 @@ screen samples2_pc():
                 ypos 130
                 frame:
                     background Solid("#1d2739")
+                    padding (0, 0)
+                    xsize 360
                     vbox:
                         frame:
                             xysize (360, 44)
+                            padding (0, 0)
                             background Solid("#10151f")
-                            hbox:
-                                xfill True
+                            fixed:
                                 text " プリンの写真.jpg" size 24 color "#ffffff" yalign 0.5
                                 textbutton "×":
                                     text_size 26
+                                    xalign 1.0
+                                    yalign 0.5
+                                    xoffset -12
                                     action SetScreenVariable("win_photo", False)
+                        null height 8
                         add Transform(Solid("#e8a33d"), xysize=(328, 220)) xalign 0.5
                         text " この前のプリン。つやつや。" size 22 color "#cfe9f5" xalign 0.5
                         null height 8
@@ -971,18 +981,28 @@ screen samples2_pc():
                 ypos 200
                 frame:
                     background Solid("#f5f0e1")
+                    padding (0, 0)
+                    xsize 400
                     vbox:
                         frame:
                             xysize (400, 44)
+                            padding (0, 0)
                             background Solid("#10151f")
-                            hbox:
-                                xfill True
+                            fixed:
                                 text " [memo_title]" size 24 color "#ffffff" yalign 0.5
                                 textbutton "×":
                                     text_size 26
+                                    xalign 1.0
+                                    yalign 0.5
+                                    xoffset -12
                                     action SetScreenVariable("win_memo", False)
-                        text " [memo_body]" size 24 color "#26303f" xpos 16 ypos 12
-                        null height 16
+                        text " [memo_body]":
+                            size 24
+                            color "#26303f"
+                            xsize 360
+                            xpos 16
+                            ypos 12
+                        null height 28
 
         if win_browser:
             drag:
@@ -992,18 +1012,25 @@ screen samples2_pc():
                 ypos 90
                 frame:
                     background Solid("#e8edf4")
+                    padding (0, 0)
+                    xsize 520
                     vbox:
                         frame:
                             xysize (520, 44)
+                            padding (0, 0)
                             background Solid("#10151f")
-                            hbox:
-                                xfill True
+                            fixed:
                                 text " ブラウザ" size 24 color "#ffffff" yalign 0.5
                                 textbutton "×":
                                     text_size 26
+                                    xalign 1.0
+                                    yalign 0.5
+                                    xoffset -12
                                     action SetScreenVariable("win_browser", False)
+                        null height 6
                         frame:
                             xysize (488, 36)
+                            padding (0, 0)
                             xalign 0.5
                             background Solid("#ffffff")
                             text " https://pudding-news.example/" size 20 color "#5f748f" yalign 0.5
@@ -1038,15 +1065,20 @@ screen samples2_pc():
                 ypos 260
                 frame:
                     background Solid("#1d2739")
+                    padding (0, 0)
+                    xsize 400
                     vbox:
                         frame:
                             xysize (400, 44)
+                            padding (0, 0)
                             background Solid("#10151f")
-                            hbox:
-                                xfill True
+                            fixed:
                                 text " ゴミ箱" size 24 color "#ffffff" yalign 0.5
                                 textbutton "×":
                                     text_size 26
+                                    xalign 1.0
+                                    yalign 0.5
+                                    xoffset -12
                                     action SetScreenVariable("win_trash", False)
                         vbox:
                             xpos 16
@@ -1071,15 +1103,20 @@ screen samples2_pc():
                 ypos 110
                 frame:
                     background Solid("#1d2739")
+                    padding (0, 0)
+                    xsize 560
                     vbox:
                         frame:
                             xysize (560, 44)
+                            padding (0, 0)
                             background Solid("#10151f")
-                            hbox:
-                                xfill True
+                            fixed:
                                 text " プリンキャッチ" size 24 color "#ffffff" yalign 0.5
                                 textbutton "×":
                                     text_size 26
+                                    xalign 1.0
+                                    yalign 0.5
+                                    xoffset -12
                                     action SetScreenVariable("win_game", False)
                         hbox:
                             xpos 16
@@ -1092,6 +1129,7 @@ screen samples2_pc():
                                 text "ベスト [s2_mole.best]" size 24 color "#cfe9f5"
                         fixed:
                             xysize (528, 344)
+                            xalign 0.5
                             add Solid("#20344d")
                             if s2_mole.running:
                                 button:
@@ -1123,7 +1161,7 @@ screen samples2_pc():
     # --- スタートメニュー ---
     if start_open:
         frame:
-            pos (12, 520)
+            pos (12, 480 - quick_h)
             background Solid("#10151f")
             vbox:
                 spacing 6
@@ -1148,7 +1186,7 @@ screen samples2_pc():
     frame:
         xfill True
         ysize 56
-        ypos 664
+        ypos 664 - quick_h
         background Solid("#10151f")
         hbox:
             xfill True

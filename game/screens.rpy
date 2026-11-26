@@ -234,17 +234,16 @@ style choice_button_text is default:
 ##
 ## The quick menu is displayed in-game to provide easy access to the
 ## out-of-game menus.
-
+define quick_h = 35 
 screen quick_menu():
-
-    ## Ensure this appears on top of other screens.
     zorder 100
-
     if quick_menu:
-
         hbox:
+            id "quick_hbox"
             style_prefix "quick"
-            style "quick_menu"
+            xalign 0.5
+            yalign 1.0
+            ysize quick_h   # ← ここで高さを固定
 
             textbutton _("Back") action Rollback()
             textbutton _("History") action ShowMenu('history')
@@ -254,7 +253,6 @@ screen quick_menu():
             textbutton _("Q.Save") action QuickSave()
             textbutton _("Q.Load") action QuickLoad()
             textbutton _("Prefs") action ShowMenu('preferences')
-
 
 ## This code ensures that the quick_menu screen is displayed in-game, whenever
 ## the player has not explicitly hidden the interface.
