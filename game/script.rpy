@@ -27,12 +27,14 @@ label start:
             a "ふつうか。まあ、動いてることが大事だね。"
     # テスト場面へ（A再現テストで追加: 既存の流れの最後に接続）
     call scene_test
-    # おまけサンプル第2弾への分岐（samples2.rpy: 会話＋レース勝負＋シェーダ）
+    # おまけサンプル第2弾への分岐（samples2.rpy: レース勝負 / 探索・推理）
     # 変更理由: samples-test-2 では内容を全部変えたため、前回の samples_hub は使わない
     menu:
         "おまけサンプル（第2弾）を見る？"
-        "見る":
+        "レース勝負を見る":
             call samples2_main
+        "探索・推理を見る":
+            call samples2_search
         "見ない":
             pass
     a "おわり。最後まで進めたら成功だよ。"
