@@ -31,7 +31,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: pages-publish
+  group: pages-publish-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
